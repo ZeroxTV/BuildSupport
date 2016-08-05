@@ -1,9 +1,16 @@
 package de.ZeroxTV.BuildSupport;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Scanner;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.SkullType;
@@ -18,6 +25,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -26,8 +34,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class BuildSupport extends JavaPlugin implements Listener, CommandExecutor {
 	
-	public static HashMap<String, ItemStack> skulls = new HashMap<>();
-	
+	private static HashMap<String, ItemStack> skulls = new HashMap<>();
+	private static ArrayList<String> players = new ArrayList<>();
 	private static HashMap<String, Location[]> permissions = new HashMap<>();
 	private static Location loc1;
 	private static Location loc2;
@@ -37,6 +45,11 @@ public class BuildSupport extends JavaPlugin implements Listener, CommandExecuto
 		System.out.println("[BuildSupport] Plugin enabled and ready to go");
 		this.getServer().getPluginManager().registerEvents(this, this);
 		this.getCommand("bs").setExecutor(this);
+		try {
+			loadArray();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 	
 	@Override
@@ -56,10 +69,10 @@ public class BuildSupport extends JavaPlugin implements Listener, CommandExecuto
 							Location loc = p.getLocation().getBlock().getLocation();
 							if (a.equals(Action.LEFT_CLICK_AIR) || a.equals(Action.LEFT_CLICK_BLOCK)) {
 								loc1 = loc;
-								p.sendMessage("Location 1 set to " + loc.toString());
+								p.sendMessage("Location 1 set to X: " + loc.getX() + " Y: " + loc.getY() + " Z: " + loc.getZ());
 							} else if (a.equals(Action.RIGHT_CLICK_AIR) || a.equals(Action.RIGHT_CLICK_BLOCK)) {
 								loc2 = loc;
-								p.sendMessage("Location 2 set to " + loc.toString());
+								p.sendMessage("Location 2 set to X: " + loc.getX() + " Y: " + loc.getY() + " Z: " + loc.getZ());
 							}
 							e.setCancelled(true);
 						}
@@ -67,7 +80,8 @@ public class BuildSupport extends JavaPlugin implements Listener, CommandExecuto
 				}
 			}
 		} else {
-			if (e.getAction().equals(Action.LEFT_CLICK_BLOCK) || e.getAction().equals(Action.RIGHT_CLICK_BLOCK)) {
+			Action ac = e.getAction();
+			if (ac.equals(Action.LEFT_CLICK_BLOCK) || ac.equals(Action.RIGHT_CLICK_BLOCK) || ac.equals(Action.LEFT_CLICK_AIR) || ac.equals(Action.RIGHT_CLICK_AIR)) {
 				if (permissions.containsKey(e.getPlayer().getName())) {
 					Location loc = e.getClickedBlock().getLocation();
 					Location l1 = permissions.get(e.getPlayer().getName())[0];
@@ -124,7 +138,47 @@ public class BuildSupport extends JavaPlugin implements Listener, CommandExecuto
 							permissions.put(pl, locs);
 							e.setCancelled(true);
 							e.getWhoClicked().closeInventory();
-							e.getWhoClicked().sendMessage("Assigned location to " + pl);
+							e.getWhoClicked().sendMessage("Bereich wurde " + pl + " zugewiesen");
+						}
+					}
+				} else if (e.getInventory().getName().equals("Wer soll hinzugefügt werden")) {
+					if (e.getCurrentItem() != null) {
+						if (e.getCurrentItem().getType().equals(Material.SKULL_ITEM)) {
+							SkullMeta sm = (SkullMeta) e.getCurrentItem().getItemMeta();
+							String pl = sm.getOwner();
+							Player p = Bukkit.getPlayer(pl);
+							p.setDisplayName("§a" + pl + "§f");
+							p.setGameMode(GameMode.CREATIVE);
+							players.add(pl);
+							p.sendMessage("§aDu kannst nun mithelfen. Viel Spaß!");
+							e.getWhoClicked().sendMessage(pl + " wurde hinzugefügt");
+							e.setCancelled(true);
+							e.getWhoClicked().closeInventory();
+							try {
+								saveArray();
+							} catch (IOException e1) {
+								e1.printStackTrace();
+							}
+						}
+					}
+				} else if (e.getInventory().getName().equals("Wer soll entfernt werden")) {
+					if (e.getCurrentItem() != null) {
+						if (e.getCurrentItem().getType().equals(Material.SKULL_ITEM)) {
+							SkullMeta sm = (SkullMeta) e.getCurrentItem().getItemMeta();
+							String pl = sm.getOwner();
+							Player p = Bukkit.getPlayer(pl);
+							players.remove(pl);
+							p.setGameMode(GameMode.SPECTATOR);
+							p.setDisplayName(pl);
+							p.sendMessage("§cDu bist nun kein BuildSupporter mehr");
+							e.getWhoClicked().sendMessage(pl + " wurde entfernt");
+							e.setCancelled(true);
+							e.getWhoClicked().closeInventory();
+							try {
+								saveArray();
+							} catch (IOException e1) {
+								e1.printStackTrace();
+							}
 						}
 					}
 				}
@@ -169,7 +223,9 @@ public class BuildSupport extends JavaPlugin implements Listener, CommandExecuto
 						
 						for (Player pl : Bukkit.getOnlinePlayers()) {
 							if (!pl.getName().equals(sender.getName())) {
-								inv.addItem(getSkull(pl.getUniqueId()));
+								if (players.contains(pl.getName())) {
+									inv.addItem(getSkull(pl.getUniqueId()));
+								}
 							}
 						}
 						p.openInventory(inv);
@@ -181,6 +237,35 @@ public class BuildSupport extends JavaPlugin implements Listener, CommandExecuto
 					wandM.setDisplayName("§fBuildSupport Wand");
 					wand.setItemMeta(wandM);
 					p.getInventory().addItem(wand);
+				} else if (args[0].equalsIgnoreCase("save")) {
+					try {
+						saveArray();
+						sender.sendMessage("Supporters saved");
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				} else if (args[0].equalsIgnoreCase("add")) {
+					Inventory inv = Bukkit.createInventory(null, 54, "Wer soll hinzugefügt werden");
+					
+					for (Player pl : Bukkit.getOnlinePlayers()) {
+						if (!pl.getName().equals(sender.getName())) {
+							if (!players.contains(pl.getName())) {
+								inv.addItem(getSkull(pl.getUniqueId()));
+							}
+						}
+					}
+					p.openInventory(inv);
+				} else if (args[0].equalsIgnoreCase("remove")) {
+					Inventory inv = Bukkit.createInventory(null, 54, "Wer soll entfernt werden");
+					
+					for (Player pl : Bukkit.getOnlinePlayers()) {
+						if (!pl.getName().equals(sender.getName())) {
+							if (players.contains(pl.getName())) {
+								inv.addItem(getSkull(pl.getUniqueId()));
+							}
+						}
+					}
+					p.openInventory(inv);
 				}
 			}
 		}
@@ -217,5 +302,41 @@ public class BuildSupport extends JavaPlugin implements Listener, CommandExecuto
 			skulls.put(p.getName(), (ItemStack) arr[0]);
 			return (ItemStack) arr[0];
 		}
+	}
+	
+	@EventHandler
+	public static void onJoin(PlayerJoinEvent e) {
+		if (players.contains(e.getPlayer().getName())) {
+			e.getPlayer().setGameMode(GameMode.CREATIVE);
+			e.getPlayer().setDisplayName("§a" + e.getPlayer().getName() + "§f");
+		} else {
+			e.getPlayer().setGameMode(GameMode.SPECTATOR);
+			e.getPlayer().setDisplayName(e.getPlayer().getName());
+		}
+	}
+	
+	public static void saveArray() throws IOException {
+		File ps = new File("plugins//BuildSupport//players.yml");
+		if (!ps.exists()) {
+			ps.getParentFile().mkdirs();
+			ps.createNewFile();
+		}
+		PrintWriter pw = new PrintWriter(new FileOutputStream("plugins//BuildSupport//players.yml"));
+	    for (String s : players)
+	        pw.println(s);
+	    pw.close();
+	}
+	
+	public static void loadArray() throws IOException {
+		File ps = new File("plugins//BuildSupport//players.yml");
+		if (!ps.exists()) {
+			ps.getParentFile().mkdirs();
+			ps.createNewFile();
+		}
+		Scanner s = new Scanner(ps);
+		while (s.hasNext()){
+		    players.add(s.next());
+		}
+		s.close();
 	}
 }
