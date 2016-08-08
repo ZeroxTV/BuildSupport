@@ -2,7 +2,7 @@ name: BuildSupport
 main: de.ZeroxTV.BuildSupport.BuildSupport
 version: 1.0
 author: ZeroxTV
-website: http://zeroxtv.des
+website: http://zeroxtv.de
 
 commands:
   bs:
