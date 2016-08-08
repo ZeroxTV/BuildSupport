@@ -83,7 +83,12 @@ public class BuildSupport extends JavaPlugin implements Listener, CommandExecuto
 			Action ac = e.getAction();
 			if (ac.equals(Action.LEFT_CLICK_BLOCK) || ac.equals(Action.RIGHT_CLICK_BLOCK) || ac.equals(Action.LEFT_CLICK_AIR) || ac.equals(Action.RIGHT_CLICK_AIR)) {
 				if (permissions.containsKey(e.getPlayer().getName())) {
-					Location loc = e.getClickedBlock().getLocation();
+					Location loc;
+					if (ac.equals(Action.LEFT_CLICK_BLOCK) || ac.equals(Action.RIGHT_CLICK_BLOCK)) {
+						loc = e.getClickedBlock().getLocation();
+					} else {
+						loc = e.getPlayer().getLocation();
+					}
 					Location l1 = permissions.get(e.getPlayer().getName())[0];
 					Location l2 = permissions.get(e.getPlayer().getName())[1];
 					
